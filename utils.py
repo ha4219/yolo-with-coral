@@ -1,6 +1,8 @@
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
+import cv2
+from PIL import Image
 
 
 def xyxy2xywh(x: np.array):
@@ -219,3 +221,25 @@ class Colors:
     @staticmethod
     def hex2rgb(h):  # rgb order (PIL)
         return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
+
+
+def get_image_tensor(img, max_size, debug=False):
+    """
+    Reshapes an input image into a square with sides max_size
+    """
+    if type(img) is str:
+        # img = cv2.imread(img)
+        img = Image.open(img)
+        img = np.array(img)
+
+    
+    resized, pad = resize_and_pad(img, max_size)
+    resized = resized.astype(np.float32)
+    
+    if debug:
+        cv2.imwrite("intermediate.png", resized)
+
+    # Normalise!
+    resized /= 255.0
+    
+    return img, resized, pad
