@@ -118,7 +118,6 @@ class Model:
         if x.shape[0] == 3:
             x = x.transpose((1,2,0))
         h, w, c = x.shape
-        print(x.shape)
         
         x = x.astype('float32')
 
@@ -129,15 +128,9 @@ class Model:
         self.interpreter.set_tensor(self.input_details[0]['index'], x)
         self.interpreter.invoke()
         
-        # Scale output
-        print('*' * 99)
         
-        print(common.output_tensor(self.interpreter, 0), self.output_zero)
         result = (common.output_tensor(self.interpreter, 0).astype('float32') - self.output_zero) * self.output_scale
-        print(result, result.shape, result[..., :4], w, h, w, h)
         result[..., :4] *= [w, h, w, h]
-        print(result)
-        print('*' * 99)
         self.inference_time = time.time() - tstart
         
         if with_nms:
