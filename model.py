@@ -130,7 +130,7 @@ class Model:
         # Scale output
         result = (common.output_tensor(self.interpreter, 0).astype('float32') - self.output_zero) * self.output_scale
         print('*' * 99)
-        print(result)
+        print(result, result.shape)
         print('*' * 99)
         self.inference_time = time.time() - tstart
         
