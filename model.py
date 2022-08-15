@@ -101,7 +101,7 @@ class Model:
             logger.warn("Interpreter is not yet loaded")
 
 
-    def forward(self, x: np.ndaaray, with_nms=True) -> np.ndarray:
+    def forward(self, x: np.ndarray, with_nms=True) -> np.ndarray:
         """
         Predict function using the EdgeTPU
 
