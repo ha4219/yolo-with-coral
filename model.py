@@ -130,7 +130,7 @@ class Model:
         # Scale output
         print('*' * 99)
         
-        print(common.output_tensor(self.interpreter, 0))
+        print(common.output_tensor(self.interpreter, 0), self.output_zero)
         result = (common.output_tensor(self.interpreter, 0).astype('float32') - self.output_zero) * self.output_scale
         print(result, result.shape)
         print('*' * 99)
