@@ -118,6 +118,7 @@ class Model:
         if x.shape[0] == 3:
             x = x.transpose((1,2,0))
         c, h, w = x.shape
+        print(x.shape)
         
         x = x.astype('float32')
 
