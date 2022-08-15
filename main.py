@@ -1,6 +1,6 @@
 import pickle
 import numpy as np
-from utils import xyxy2xywh, xywh2xyxy, box_iou, ap_per_class
+from utils import xywh2xyxy, box_iou, ap_per_class
 from pathlib import Path
 
 nc = 1
@@ -42,6 +42,7 @@ def process_batch(detections, labels, iouv):
 
 stats = []
 for pred, label in zip(preds, labels):
+    shape = [2160, 3840]
     pred = pred[0]
     nl, npr = label.shape[0], pred.shape[0]  # number of labels, predictions
     correct = np.zeros((npr, niou)).astype(bool)

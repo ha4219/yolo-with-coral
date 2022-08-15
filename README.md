@@ -7,3 +7,13 @@
 ## TODO
 
 1. consider padding size
+
+
+
+## Description
+
+1. yolov5
+export.py -> edgetpu
+
+2. yolov7
+export.py -> openvino -> edgetpu

@@ -223,23 +223,96 @@ class Colors:
         return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
 
 
-def get_image_tensor(img, max_size, debug=False):
-    """
-    Reshapes an input image into a square with sides max_size
-    """
-    if type(img) is str:
-        # img = cv2.imread(img)
-        img = Image.open(img)
-        img = np.array(img)
+# def resize_and_pad(image, desired_size):
+#     old_size = image.shape[:2] 
+#     ratio = float(desired_size/max(old_size))
+#     new_size = tuple([int(x*ratio) for x in old_size])
+    
+#     # new_size should be in (width, height) format
+    
+#     image = cv2.resize(image, (new_size[1], new_size[0]))
+    
+#     delta_w = desired_size - new_size[1]
+#     delta_h = desired_size - new_size[0]
+    
+#     pad = (delta_w, delta_h)
+    
+#     color = [100, 100, 100]
+#     new_im = cv2.copyMakeBorder(image, 0, delta_h, 0, delta_w, cv2.BORDER_CONSTANT,
+#         value=color)
+        
+#     return new_im, pad
+
+# def get_image_tensor(img, max_size, debug=False):
+#     """
+#     Reshapes an input image into a square with sides max_size
+#     """
+#     if type(img) is str:
+#         # img = cv2.imread(img)
+#         img = Image.open(img)
+#         img = np.array(img)
 
     
-    resized, pad = resize_and_pad(img, max_size)
-    resized = resized.astype(np.float32)
+#     resized, pad = resize_and_pad(img, max_size)
+#     resized = resized.astype(np.float32)
     
-    if debug:
-        cv2.imwrite("intermediate.png", resized)
+#     if debug:
+#         cv2.imwrite("intermediate.png", resized)
 
-    # Normalise!
-    resized /= 255.0
+#     # Normalise!
+#     resized /= 255.0
     
-    return img, resized, pad
+#     return img, resized, pad
+
+def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
+    # Resize and pad image while meeting stride-multiple constraints
+    shape = im.shape[:2]  # current shape [height, width]
+    if isinstance(new_shape, int):
+        new_shape = (new_shape, new_shape)
+
+    # Scale ratio (new / old)
+    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
+    if not scaleup:  # only scale down, do not scale up (for better val mAP)
+        r = min(r, 1.0)
+
+    # Compute padding
+    ratio = r, r  # width, height ratios
+    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
+    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
+    if auto:  # minimum rectangle
+        dw, dh = np.mod(dw, stride), np.mod(dh, stride)  # wh padding
+    elif scaleFill:  # stretch
+        dw, dh = 0.0, 0.0
+        new_unpad = (new_shape[1], new_shape[0])
+        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
+
+    dw /= 2  # divide padding into 2 sides
+    dh /= 2
+
+    if shape[::-1] != new_unpad:  # resize
+        im = cv2.resize(im, new_unpad, interpolation=cv2.INTER_LINEAR)
+    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
+    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
+    im = cv2.copyMakeBorder(im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
+    return im, ratio, (dw, dh)
+
+def load_image(im, img_size):
+    h0, w0 = im.shape[:2]
+    r = img_size / max(h0, w0)
+    if r != 1:
+        interp = cv2.INTER_LINEAR if r > 1 else cv2.INTER_AREA
+        im = cv2.resize(im, (int(w0*r), int(h0*r)), interpolation=interp)
+    return im, (h0, w0), im.shape[:2]
+
+def get_image_tensor(im, img_size=320):
+    img, (h0, w0), (h, w) = load_image(im, img_size)
+    
+#     shape = self.
+    img, ratio, pad = letterbox(img, (img_size, img_size), auto=False, scaleup=False)
+    shapes = (h0, w0), ((h / h0, w / w0), pad)  # for COCO mAP rescaling
+    
+    # Convert
+    img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+    img = np.ascontiguousarray(img)
+    img = img.astype(float) / 255.0
+    return img, shapes
