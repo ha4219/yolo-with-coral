@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EdgeTPUModel")
 
 class Model:
-    def __init__(self, model_file, names_file=Path('data/data.yaml'), conf_thresh=0.25, iou_thresh=0.45, filter_classes=[], agnostic_nms=True, max_det=1000) -> None:
+    def __init__(self, model_file, names_file=Path('data/data.yaml'), conf_thresh=0.25, iou_thresh=0.45, filter_classes=None, agnostic_nms=True, max_det=1000) -> None:
         model_file = os.path.abspath(model_file)
         if not model_file.endswith('tflite'):
             model_file += ".tflite"
