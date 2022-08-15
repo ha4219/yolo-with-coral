@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EdgeTPUModel")
 
 class Model:
-    def __init__(self, model_file, names_file=Path('data/data.yaml'), conf_thresh=0.25, iou_thresh=0.45, filter_classes=None, agnostic_nms=False, max_det=1000) -> None:
+    def __init__(self, model_file, names_file=Path('data/data.yaml'), conf_thresh=0.25, iou_thresh=0.45, filter_classes=None, agnostic_nms=True, max_det=1000) -> None:
         model_file = os.path.abspath(model_file)
         if not model_file.endswith('tflite'):
             model_file += ".tflite"
@@ -136,7 +136,7 @@ class Model:
         if with_nms:
         
             tstart = time.time()
-            nms_result = non_max_suppression(result, self.conf_thresh, self.iou_thresh, self.filter_classes, self.agnostic_nms, max_det=self.max_det)
+            nms_result = non_max_suppression(result, self.conf_thresh, self.iou_thresh, [], self.agnostic_nms, max_det=self.max_det)
             self.nms_time = time.time() - tstart
             
             return nms_result
