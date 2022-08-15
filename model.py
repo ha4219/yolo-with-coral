@@ -134,7 +134,7 @@ class Model:
         
         print(common.output_tensor(self.interpreter, 0), self.output_zero)
         result = (common.output_tensor(self.interpreter, 0).astype('float32') - self.output_zero) * self.output_scale
-        print(result, result.shape)
+        print(result, result.shape, result[..., :4])
         result[..., :4] *= [w, h, w, h]
         print(result)
         print('*' * 99)
