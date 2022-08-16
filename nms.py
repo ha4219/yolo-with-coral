@@ -115,7 +115,7 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
         c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
         boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
         
-        print(boxes, scores, iou_thres)
+        print(boxes, boxes.shape, scores, scores.shape, iou_thres)
         i = nms(boxes, scores, iou_thres)  # NMS
         
         if i.shape[0] > max_det:  # limit detections
