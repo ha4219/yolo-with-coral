@@ -43,7 +43,7 @@ def nms(dets, scores, thresh):
 
 def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,
                         labels=(), max_det=300):
-    print(prediction.max(), prediction.min())
+    print(prediction.max(), prediction.min(), prediction.shape)
     bs = prediction.shape[0]  # batch size
     nc = prediction.shape[2] - 5  # number of classes
     xc = prediction[..., 4] > conf_thres  # candidates
