@@ -113,7 +113,6 @@ class Model:
             prediction array (with or without NMS applied)
 
         """
-        tstart = time.time()
         # Transpose if C, H, W
         if x.shape[0] == 3:
             x = x.transpose((1,2,0))
