@@ -1,0 +1,8 @@
+{
+  "include": ["*.py"],
+  // "exclude": ["*.json", "*.pt", "*npy", "*.yaml"],
+  "reportTypeshedErrors": true,
+  "reportMissingImports": false,
+  "pythonVersion": "3.10",
+  "pythonPlatform": "Darwin"
+}

@@ -2,7 +2,7 @@ from glob import glob
 
 import numpy as np
 
-from model import Model
+from models.tf_model import Model
 from utils import get_image_tensor
 
 model = Model('models/320/s.tflite', 'data/tree.yaml', conf_thresh=0.25, iou_thresh=0.45)
@@ -30,5 +30,5 @@ for (full_image, net_image, pad), (label) in zip(x, y):
     pred = model.forward(net_image)
     preds.append(pred)
     labels.append(label)
-    print('pred',pred)
-    print('label',label)
+    print('pred', pred)
+    print('label', label)
