@@ -1,6 +1,6 @@
 import pickle
 import numpy as np
-from utils import xywh2xyxy, box_iou, ap_per_class
+from util import xywh2xyxy, box_iou, ap_per_class
 from pathlib import Path
 
 nc = 1

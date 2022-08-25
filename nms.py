@@ -1,8 +1,12 @@
-import numpy as np
+'''
+    nms
+'''
 import time
+import numpy as np
 
-from utils import xywh2xyxy, box_iou
-    
+from util import xywh2xyxy, box_iou
+
+
 def nms(dets, scores, thresh):
     '''
     dets is a numpy array : num_dets, 4
