@@ -47,12 +47,12 @@ def nms(dets, scores, thresh):
 
 def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,
                         labels=(), max_det=300):
-    print(prediction.max(), prediction.min(), prediction.shape)
+    # print(prediction.max(), prediction.min(), prediction.shape)
     bs = prediction.shape[0]  # batch size
     nc = prediction.shape[2] - 5  # number of classes
     xc = prediction[..., 4] > conf_thres  # candidates
-    print(xc.sum())
-    print(prediction[..., 4], prediction[..., 4].max(), prediction[..., 4].min())
+    # print(xc.sum())
+    # print(prediction[..., 4], prediction[..., 4].max(), prediction[..., 4].min())
 
     # Checks
     assert 0 <= conf_thres <= 1, f'Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0'
@@ -73,7 +73,7 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
         # Apply constraints
         # x[((x[..., 2:4] < min_wh) | (x[..., 2:4] > max_wh)).any(1), 4] = 0  # width-height
         x = x[xc[xi]]  # confidence
-        print(x.shape, conf_thres)
+        # print(x.shape, conf_thres)
 
         # Cat apriori labels if autolabelling
         if labels and len(labels[xi]):
@@ -122,7 +122,7 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
         c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
         boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
         
-        print(boxes.shape, scores.shape, iou_thres)
+        # print(boxes.shape, scores.shape, iou_thres)
         i = nms(boxes, scores, iou_thres)  # NMS
         
         if i.shape[0] > max_det:  # limit detections

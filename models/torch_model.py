@@ -1,5 +1,6 @@
 '''torch model implementation'''
 import torch
+import numpy as np
 
 
 class Model:
@@ -11,11 +12,7 @@ class Model:
         self.model = torch.jit.load(model_path)
 
     def forward(self, x):
+        ''' forward '''
         res = self.model(x)
-        return res
+        return res[0].numpy()
 
-
-x = torch.randn((1, 3, 640, 640))
-m = Model()
-
-print(m.forward(x)[0].shape)

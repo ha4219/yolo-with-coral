@@ -40,6 +40,7 @@ def process_batch(detections, labels, iouv):
             correct[matches[:, 1].astype(int), i] = True
     return np.array(correct, dtype=bool)
 
+
 stats = []
 for pred, label in zip(preds, labels):
     shape = [2160, 3840]
