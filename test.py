@@ -10,6 +10,8 @@ from nms import non_max_suppression
 from util import get_image_tensor, box_iou, scale_coords, xywh2xyxy, ap_per_class, Annotator, xywhn2xyxy, xyxy2xywh
 
 
+
+CONF_THRES = 0.01
 def process_batch(detections, labels, iouv):
     """
     Return correct predictions matrix. Both sets of boxes are in (x1, y1, x2, y2) format.
@@ -78,6 +80,7 @@ for idx, (((im, shapes, im0, cratio), paths), (label)) in enumerate(zip(x, y)):
             continue
 
         for *xyxy, conf, cls in reversed(predn):
+            if conf < CONF_THRES: continue
             c = int(cls)
             xywh = xyxy2xywh(np.expand_dims(xyxy, axis=0))
             line = f'{round(conf, 2)}'
