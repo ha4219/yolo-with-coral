@@ -59,14 +59,12 @@ x = [(get_image_tensor(cv2.imread(img), 640),img) for img in images]
 for idx, (((im, shapes, im0, cratio), paths), (label)) in enumerate(zip(x, y)):
     label_origin = label.copy()
     out = m.forward(torch.from_numpy(im).unsqueeze(0).float())
-    # print(result, type(result), target)
     out = non_max_suppression(prediction=out, conf_thres=0.0001, iou_thres=0.6, labels=[], agnostic=True)
     _, height, width = im.shape
     im0 = cv2.imread(paths)
     annotator = Annotator(im0, line_width=10)
     padw, padh = shapes[-1][1]
     label[:, 1:] *= [width, height, width, height]
-    # label[:, 1:] *= [width + padw /cratio[0], height + padh / cratio[1], width + padw /cratio[0], height + padh / cratio[1]]
     for si, pred in enumerate(out):
         shape = shapes[0]
         nl, npr = label.shape[0], pred.shape[0]
@@ -87,11 +85,7 @@ for idx, (((im, shapes, im0, cratio), paths), (label)) in enumerate(zip(x, y)):
 
         if nl:
             tbox = xywh2xyxy(label[:, 1:5])
-            # print()
-            # print(tbox)
             scale_coords(im.shape[1:], tbox, shape, shapes[1])  # native-space labels
-            # print(tbox)
-            # print()
 
             labeln = np.concatenate((label[:, 0:1], tbox), 1)
             # for conf, *xyxy in labeln:
@@ -107,18 +101,6 @@ for idx, (((im, shapes, im0, cratio), paths), (label)) in enumerate(zip(x, y)):
             for xyxy in label_origin:
                 annotator.box_label(xyxy, None, (255, 0, 0))
         
-        # print('_'*99)
-
-        # if nl:
-        #     print(label_origin[:, 1:5])
-        #     xyxys = xywhn2xyxy(label_origin[:, 1:5], width, height, padw, padh)
-        #     print(xyxys)
-        #     for xyxy in xyxys:
-        #         annotator.box_label(xyxy, None, (255, 0, 0))
-        # xyxys = xywh2xyxy(label[:, 1:5])
-        # for xyxy in reversed(xyxys):
-        #     print(xyxy)
-        #     annotator.box_label(xyxy, None, (255, 0, 0))
         im0 = annotator.result()
         name = paths.split('/')[-1]
         cv2.imwrite(f'{name}', im0)
