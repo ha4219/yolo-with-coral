@@ -33,6 +33,15 @@ def xywh2xyxy(x: np.array):
     y[:, 3] = x[:, 1] + x[:, 3] / 2  # bottom right y
     return y
 
+def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
+    # Convert nx4 boxes from [x, y, w, h] normalized to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[:, 0] = w * (x[:, 0] - x[:, 2] / 2) + padw  # top left x
+    y[:, 1] = h * (x[:, 1] - x[:, 3] / 2) + padh  # top left y
+    y[:, 2] = w * (x[:, 0] + x[:, 2] / 2) + padw  # bottom right x
+    y[:, 3] = h * (x[:, 1] + x[:, 3] / 2) + padh  # bottom right y
+    return y
+
 def box_area(box):
     # box = xyxy(4,n)
     return (box[2] - box[0]) * (box[3] - box[1])
@@ -65,8 +74,8 @@ def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
         gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
         pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
     else:
-        gain = ratio_pad[0][0]
-        pad = ratio_pad[1]
+        gain = ratio_pad[0][0]  # 0.1666666
+        pad = ratio_pad[1]  # (0, 140)
 
     coords[:, [0, 2]] -= pad[0]  # x padding
     coords[:, [1, 3]] -= pad[1]  # y padding
@@ -232,6 +241,7 @@ class Colors:
 
 def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
     # Resize and pad image while meeting stride-multiple constraints
+    im0 = im.copy()
     shape = im.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):
         new_shape = (new_shape, new_shape)
@@ -260,7 +270,11 @@ def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleF
     top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
     left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
     im = cv2.copyMakeBorder(im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
-    return im, ratio, (dw, dh)
+    
+    # add custom ratio
+    width, height, _ = im0.shape
+    rdw, rdh = (width - left) / new_shape[0], (height- top) / new_shape[1]
+    return im, ratio, (dw, dh), (rdw, rdh)
 
 def load_image(im, img_size):
     h0, w0 = im.shape[:2]
@@ -274,7 +288,7 @@ def get_image_tensor(im, img_size=640):
     img, (h0, w0), (h, w) = load_image(im, img_size)
     
 #     shape = self.
-    img, ratio, pad = letterbox(img, (img_size, img_size), auto=False, scaleup=False)
+    img, ratio, pad, cratio = letterbox(img, (img_size, img_size), auto=False, scaleup=False)
     shapes = (h0, w0), ((h / h0, w / w0), pad)  # for COCO mAP rescaling
     im0 = img.copy()
     
@@ -282,7 +296,7 @@ def get_image_tensor(im, img_size=640):
     img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
     img = np.ascontiguousarray(img)
     img = img.astype(float) / 255.0
-    return img, shapes, im0
+    return img, shapes, im0, cratio
 
 def is_writeable(dir, test=False):
     # Return True if directory has write permissions, test opening a file with write permissions if test=True
@@ -354,7 +368,7 @@ class Annotator:
                                        size=font_size or max(round(sum(self.im.size) / 2 * 0.035), 12))
         else:  # use cv2
             self.im = im
-        self.lw = line_width or max(round(sum(im.shape) / 2 * 0.003), 2)  # line width
+        self.lw = line_width or max(round(sum(im.shape) / 2 * 0.003), 10)  # line width
 
     def box_label(self, box, label='', color=(128, 128, 128), txt_color=(255, 255, 255)):
         # Add one xyxy box to image with label
@@ -403,12 +417,3 @@ class Annotator:
         return np.asarray(self.im)
 
 
-def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
-    print(padw, padh)
-    # Convert nx4 boxes from [x, y, w, h] normalized to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
-    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
-    y[:, 0] = w * (x[:, 0] - x[:, 2] / 2) + padw  # top left x
-    y[:, 1] = h * (x[:, 1] - x[:, 3] / 2) + padh  # top left y
-    y[:, 2] = w * (x[:, 0] + x[:, 2] / 2) + padw  # bottom right x
-    y[:, 3] = h * (x[:, 1] + x[:, 3] / 2) + padh  # bottom right y
-    return y

@@ -7,7 +7,7 @@ from pathlib import Path
 from models.tf_model import Model as TFModel
 from models.torch_model import Model as TorchModel
 from nms import non_max_suppression
-from util import get_image_tensor, box_iou, scale_coords, xywh2xyxy, ap_per_class, Annotator, xywhn2xyxy
+from util import get_image_tensor, box_iou, scale_coords, xywh2xyxy, ap_per_class, Annotator, xywhn2xyxy, xyxy2xywh
 
 
 def process_batch(detections, labels, iouv):
@@ -56,14 +56,17 @@ for label in labels:
             lines = np.ndarray((0, 5))
         y.append(lines)
 x = [(get_image_tensor(cv2.imread(img), 640),img) for img in images]
-for idx, (((im, shapes, im0), paths), (label)) in enumerate(zip(x, y)):
+for idx, (((im, shapes, im0, cratio), paths), (label)) in enumerate(zip(x, y)):
+    label_origin = label.copy()
     out = m.forward(torch.from_numpy(im).unsqueeze(0).float())
     # print(result, type(result), target)
     out = non_max_suppression(prediction=out, conf_thres=0.0001, iou_thres=0.6, labels=[], agnostic=True)
     _, height, width = im.shape
-    annotator = Annotator(im0, line_width=3)
-    label_origin = label.copy()
+    im0 = cv2.imread(paths)
+    annotator = Annotator(im0, line_width=10)
+    padw, padh = shapes[-1][1]
     label[:, 1:] *= [width, height, width, height]
+    # label[:, 1:] *= [width + padw /cratio[0], height + padh / cratio[1], width + padw /cratio[0], height + padh / cratio[1]]
     for si, pred in enumerate(out):
         shape = shapes[0]
         nl, npr = label.shape[0], pred.shape[0]
@@ -76,21 +79,46 @@ for idx, (((im, shapes, im0), paths), (label)) in enumerate(zip(x, y)):
                 stats.append((correct, *np.zeros((2, 0)), label[:, 0]))
             continue
 
+        for *xyxy, conf, cls in reversed(predn):
+            c = int(cls)
+            xywh = xyxy2xywh(np.expand_dims(xyxy, axis=0))
+            line = f'{round(conf, 2)}'
+            annotator.box_label(xyxy, line, (0, 0, 255))
+
         if nl:
             tbox = xywh2xyxy(label[:, 1:5])
+            # print()
+            # print(tbox)
             scale_coords(im.shape[1:], tbox, shape, shapes[1])  # native-space labels
+            # print(tbox)
+            # print()
+
             labeln = np.concatenate((label[:, 0:1], tbox), 1)
+            # for conf, *xyxy in labeln:
+            #     print(xyxy)
+            #     annotator.box_label(xyxy, None, (255, 0, 0))
             correct = process_batch(predn, labeln, iouv)
         stats.append((correct, pred[:, 4], pred[:, 5], label[:, 0]))  # (correct, conf, pcls, tcls)
 
-        for *xyxy, conf, cls in reversed(pred):
-            c = int(cls)
-            annotator.box_label(xyxy, None, (0, 0, 255))
-        print('_'*99)
-        xyxys = xywh2xyxy(label[:, 1:5])
-        for xyxy in reversed(xyxys):
-            print(xyxy)
-            annotator.box_label(xyxy, None, (255, 0, 0))
+        if nl:
+            h, w = shape
+            label_origin = xywh2xyxy(label_origin[:, 1:5])
+            label_origin *= [w, h, w, h]
+            for xyxy in label_origin:
+                annotator.box_label(xyxy, None, (255, 0, 0))
+        
+        # print('_'*99)
+
+        # if nl:
+        #     print(label_origin[:, 1:5])
+        #     xyxys = xywhn2xyxy(label_origin[:, 1:5], width, height, padw, padh)
+        #     print(xyxys)
+        #     for xyxy in xyxys:
+        #         annotator.box_label(xyxy, None, (255, 0, 0))
+        # xyxys = xywh2xyxy(label[:, 1:5])
+        # for xyxy in reversed(xyxys):
+        #     print(xyxy)
+        #     annotator.box_label(xyxy, None, (255, 0, 0))
         im0 = annotator.result()
         name = paths.split('/')[-1]
         cv2.imwrite(f'{name}', im0)
