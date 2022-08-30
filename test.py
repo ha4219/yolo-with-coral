@@ -4,10 +4,10 @@ from glob import glob
 import cv2
 from pathlib import Path
 
-# from models.tf_model import Model as TFModel
+from models.tf_model import Model as TFModel
 from models.torch_model import Model as TorchModel
 from nms import non_max_suppression
-from util import get_image_tensor, box_iou, scale_coords, xywh2xyxy, ap_per_class
+from util import get_image_tensor, box_iou, scale_coords, xywh2xyxy, ap_per_class, Annotator, xywhn2xyxy
 
 
 def process_batch(detections, labels, iouv):
@@ -42,8 +42,8 @@ iouv = np.linspace(0.5, 0.95, 10)  # iou vector for mAP@0.5:0.95
 niou = iouv.size
 
 m = TorchModel()
-images = glob('sample/images/*')
-labels = glob('sample/labels/*')
+images = sorted(glob('sample/images/*'))
+labels = sorted(glob('sample/labels/*'))
 y = []
 for label in labels:
     with open(label, 'r') as f:
@@ -56,14 +56,14 @@ for label in labels:
             lines = np.ndarray((0, 5))
         y.append(lines)
 x = [(get_image_tensor(cv2.imread(img), 640),img) for img in images]
-for ((im, shapes), paths), (label) in zip(x, y):
-    # image, shapes = get_image_tensor(cv2.imread(image_path), 640)
-    # image = torch.from_numpy(image).unsqueeze(0).float()
-    label[:, 1:] *= [640, 640, 640, 640]
+for idx, (((im, shapes, im0), paths), (label)) in enumerate(zip(x, y)):
     out = m.forward(torch.from_numpy(im).unsqueeze(0).float())
     # print(result, type(result), target)
     out = non_max_suppression(prediction=out, conf_thres=0.0001, iou_thres=0.6, labels=[], agnostic=True)
-
+    _, height, width = im.shape
+    annotator = Annotator(im0, line_width=3)
+    label_origin = label.copy()
+    label[:, 1:] *= [width, height, width, height]
     for si, pred in enumerate(out):
         shape = shapes[0]
         nl, npr = label.shape[0], pred.shape[0]
@@ -77,16 +77,27 @@ for ((im, shapes), paths), (label) in zip(x, y):
             continue
 
         if nl:
-            tbox = xywh2xyxy(label[:, 1:])
+            tbox = xywh2xyxy(label[:, 1:5])
             scale_coords(im.shape[1:], tbox, shape, shapes[1])  # native-space labels
             labeln = np.concatenate((label[:, 0:1], tbox), 1)
             correct = process_batch(predn, labeln, iouv)
         stats.append((correct, pred[:, 4], pred[:, 5], label[:, 0]))  # (correct, conf, pcls, tcls)
 
+        for *xyxy, conf, cls in reversed(pred):
+            c = int(cls)
+            annotator.box_label(xyxy, None, (0, 0, 255))
+        print('_'*99)
+        xyxys = xywh2xyxy(label[:, 1:5])
+        for xyxy in reversed(xyxys):
+            print(xyxy)
+            annotator.box_label(xyxy, None, (255, 0, 0))
+        im0 = annotator.result()
+        name = paths.split('/')[-1]
+        cv2.imwrite(f'{name}', im0)
+
 stats = [np.concatenate(x, 0) for x in zip(*stats)]
 if len(stats):
     tp, fp, p, r, f1, ap, ap_class = ap_per_class(*stats, plot=True, save_dir=Path('res'),  names={0: 'Danger'})
-    print(tp, fp, p, r, f1, ap, ap_class)
     ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
     mp, mr, map50, map95 = p.mean(), r.mean(), ap50.mean(), ap.mean()
 nt = np.bincount(stats[3].astype(int), minlength=nc)

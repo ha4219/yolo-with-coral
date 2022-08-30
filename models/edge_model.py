@@ -5,7 +5,8 @@ from pathlib import Path
 import time
 import numpy as np
 
-import tensorflow as tf
+import pycoral.utils.edgetpu as etpu
+from pycoral.adapters import common
 
 from util import Colors
 from nms import non_max_suppression

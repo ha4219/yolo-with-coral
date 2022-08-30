@@ -2,7 +2,7 @@ from glob import glob
 
 import numpy as np
 
-from models.tf_model import Model
+from models.edge_model import Model
 from util import get_image_tensor
 
 model = Model('models/320/s.tflite', 'data/tree.yaml', conf_thresh=0.25, iou_thresh=0.45)

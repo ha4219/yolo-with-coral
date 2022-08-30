@@ -1,9 +1,16 @@
+import os, platform
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 import cv2
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
+from urllib.error import URLError
+import torch
+import logging
 
+LOGGER = logging.getLogger("yolov5")  # define globally (used in train.py, val.py, detect.py, etc.)
+
+FONT = 'Arial.ttf'  # https://ultralytics.com/assets/Arial.ttf
 
 def xyxy2xywh(x: np.array):
     # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right
@@ -223,47 +230,6 @@ class Colors:
         return tuple(int(h[1 + i:1 + i + 2], 16) for i in (0, 2, 4))
 
 
-# def resize_and_pad(image, desired_size):
-#     old_size = image.shape[:2] 
-#     ratio = float(desired_size/max(old_size))
-#     new_size = tuple([int(x*ratio) for x in old_size])
-    
-#     # new_size should be in (width, height) format
-    
-#     image = cv2.resize(image, (new_size[1], new_size[0]))
-    
-#     delta_w = desired_size - new_size[1]
-#     delta_h = desired_size - new_size[0]
-    
-#     pad = (delta_w, delta_h)
-    
-#     color = [100, 100, 100]
-#     new_im = cv2.copyMakeBorder(image, 0, delta_h, 0, delta_w, cv2.BORDER_CONSTANT,
-#         value=color)
-        
-#     return new_im, pad
-
-# def get_image_tensor(img, max_size, debug=False):
-#     """
-#     Reshapes an input image into a square with sides max_size
-#     """
-#     if type(img) is str:
-#         # img = cv2.imread(img)
-#         img = Image.open(img)
-#         img = np.array(img)
-
-    
-#     resized, pad = resize_and_pad(img, max_size)
-#     resized = resized.astype(np.float32)
-    
-#     if debug:
-#         cv2.imwrite("intermediate.png", resized)
-
-#     # Normalise!
-#     resized /= 255.0
-    
-#     return img, resized, pad
-
 def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
     # Resize and pad image while meeting stride-multiple constraints
     shape = im.shape[:2]  # current shape [height, width]
@@ -304,15 +270,145 @@ def load_image(im, img_size):
         im = cv2.resize(im, (int(w0*r), int(h0*r)), interpolation=interp)
     return im, (h0, w0), im.shape[:2]
 
-def get_image_tensor(im, img_size=320):
+def get_image_tensor(im, img_size=640):
     img, (h0, w0), (h, w) = load_image(im, img_size)
     
 #     shape = self.
     img, ratio, pad = letterbox(img, (img_size, img_size), auto=False, scaleup=False)
     shapes = (h0, w0), ((h / h0, w / w0), pad)  # for COCO mAP rescaling
+    im0 = img.copy()
     
     # Convert
     img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
     img = np.ascontiguousarray(img)
     img = img.astype(float) / 255.0
-    return img, shapes
+    return img, shapes, im0
+
+def is_writeable(dir, test=False):
+    # Return True if directory has write permissions, test opening a file with write permissions if test=True
+    if not test:
+        return os.access(dir, os.W_OK)  # possible issues on Windows
+    file = Path(dir) / 'tmp.txt'
+    try:
+        with open(file, 'w'):  # open file with write permissions
+            pass
+        file.unlink()  # remove file
+        return True
+    except OSError:
+        return False
+
+def is_ascii(s=''):
+    # Is string composed of all ASCII (no UTF) characters? (note str().isascii() introduced in python 3.7)
+    s = str(s)  # convert list, tuple, None, etc. to str
+    return len(s.encode().decode('ascii', 'ignore')) == len(s)
+
+def user_config_dir(dir='Ultralytics', env_var='YOLOV5_CONFIG_DIR'):
+    # Return path of user configuration directory. Prefer environment variable if exists. Make dir if required.
+    env = os.getenv(env_var)
+    if env:
+        path = Path(env)  # use environment variable
+    else:
+        cfg = {'Windows': 'AppData/Roaming', 'Linux': '.config', 'Darwin': 'Library/Application Support'}  # 3 OS dirs
+        path = Path.home() / cfg.get(platform.system(), '')  # OS-specific config dir
+        path = (path if is_writeable(path) else Path('/tmp')) / dir  # GCP and AWS lambda fix, only /tmp is writeable
+    path.mkdir(exist_ok=True)  # make if required
+    return path
+
+CONFIG_DIR = user_config_dir()
+
+def check_font(font=FONT, progress=False):
+    # Download font to CONFIG_DIR if necessary
+    font = Path(font)
+    file = CONFIG_DIR / font.name
+    if not font.exists() and not file.exists():
+        url = "https://ultralytics.com/assets/" + font.name
+        LOGGER.info(f'Downloading {url} to {file}...')
+        torch.hub.download_url_to_file(url, str(file), progress=progress)
+
+def check_pil_font(font=FONT, size=10):
+    # Return a PIL TrueType Font, downloading to CONFIG_DIR if necessary
+    font = Path(font)
+    font = font if font.exists() else (CONFIG_DIR / font.name)
+    try:
+        return ImageFont.truetype(str(font) if font.exists() else font.name, size)
+    except Exception:  # download if missing
+        try:
+            check_font(font)
+            return ImageFont.truetype(str(font), size)
+        # except TypeError:
+        #     check_requirements('Pillow>=8.4.0')  # known issue https://github.com/ultralytics/yolov5/issues/5374
+        except URLError:  # not online
+            return ImageFont.load_default()
+
+
+class Annotator:
+    # YOLOv5 Annotator for train/val mosaics and jpgs and detect/hub inference annotations
+    def __init__(self, im, line_width=None, font_size=None, font='Arial.ttf', pil=False, example='abc'):
+        assert im.data.contiguous, 'Image not contiguous. Apply np.ascontiguousarray(im) to Annotator() input images.'
+        non_ascii = not is_ascii(example)  # non-latin labels, i.e. asian, arabic, cyrillic
+        self.pil = pil or non_ascii
+        if self.pil:  # use PIL
+            self.im = im if isinstance(im, Image.Image) else Image.fromarray(im)
+            self.draw = ImageDraw.Draw(self.im)
+            self.font = check_pil_font(font='Arial.Unicode.ttf' if non_ascii else font,
+                                       size=font_size or max(round(sum(self.im.size) / 2 * 0.035), 12))
+        else:  # use cv2
+            self.im = im
+        self.lw = line_width or max(round(sum(im.shape) / 2 * 0.003), 2)  # line width
+
+    def box_label(self, box, label='', color=(128, 128, 128), txt_color=(255, 255, 255)):
+        # Add one xyxy box to image with label
+        if self.pil or not is_ascii(label):
+            self.draw.rectangle(box, width=self.lw, outline=color)  # box
+            if label:
+                w, h = self.font.getsize(label)  # text width, height
+                outside = box[1] - h >= 0  # label fits outside box
+                self.draw.rectangle(
+                    (box[0], box[1] - h if outside else box[1], box[0] + w + 1,
+                     box[1] + 1 if outside else box[1] + h + 1),
+                    fill=color,
+                )
+                # self.draw.text((box[0], box[1]), label, fill=txt_color, font=self.font, anchor='ls')  # for PIL>8.0
+                self.draw.text((box[0], box[1] - h if outside else box[1]), label, fill=txt_color, font=self.font)
+        else:  # cv2
+            p1, p2 = (int(box[0]), int(box[1])), (int(box[2]), int(box[3]))
+            cv2.rectangle(self.im, p1, p2, color, thickness=self.lw, lineType=cv2.LINE_AA)
+            if label:
+                tf = max(self.lw - 1, 1)  # font thickness
+                w, h = cv2.getTextSize(label, 0, fontScale=self.lw / 3, thickness=tf)[0]  # text width, height
+                outside = p1[1] - h >= 3
+                p2 = p1[0] + w, p1[1] - h - 3 if outside else p1[1] + h + 3
+                cv2.rectangle(self.im, p1, p2, color, -1, cv2.LINE_AA)  # filled
+                cv2.putText(self.im,
+                            label, (p1[0], p1[1] - 2 if outside else p1[1] + h + 2),
+                            0,
+                            self.lw / 3,
+                            txt_color,
+                            thickness=tf,
+                            lineType=cv2.LINE_AA)
+
+    def rectangle(self, xy, fill=None, outline=None, width=1):
+        # Add rectangle to image (PIL-only)
+        self.draw.rectangle(xy, fill, outline, width)
+
+    def text(self, xy, text, txt_color=(255, 255, 255), anchor='top'):
+        # Add text to image (PIL-only)
+        if anchor == 'bottom':  # start y from font bottom
+            w, h = self.font.getsize(text)  # text width, height
+            xy[1] += 1 - h
+        self.draw.text(xy, text, fill=txt_color, font=self.font)
+
+    def result(self):
+        # Return annotated image as array
+        return np.asarray(self.im)
+
+
+def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
+    print(padw, padh)
+    # Convert nx4 boxes from [x, y, w, h] normalized to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
+    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
+    y[:, 0] = w * (x[:, 0] - x[:, 2] / 2) + padw  # top left x
+    y[:, 1] = h * (x[:, 1] - x[:, 3] / 2) + padh  # top left y
+    y[:, 2] = w * (x[:, 0] + x[:, 2] / 2) + padw  # bottom right x
+    y[:, 3] = h * (x[:, 1] + x[:, 3] / 2) + padh  # bottom right y
+    return y
