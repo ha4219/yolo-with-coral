@@ -4,7 +4,7 @@ from glob import glob
 import cv2
 from pathlib import Path
 
-from models.tf_model import Model as TFModel
+# from models.tf_model import Model as TFModel
 from models.torch_model import Model as TorchModel
 from nms import non_max_suppression
 from util import get_image_tensor, box_iou, scale_coords, xywh2xyxy, ap_per_class, Annotator, xywhn2xyxy, xyxy2xywh

@@ -5,7 +5,8 @@ from pathlib import Path
 import time
 import numpy as np
 
-import tensorflow as tf
+import pycoral.utils.edgetpu as etpu
+from pycoral.adapters import common
 
 from util import Colors
 from nms import non_max_suppression
@@ -14,7 +15,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("EdgeTPUModel")
 
 class Model:
-    def __init__(self, model_file, names_file=Path('data/data.yaml'), conf_thresh=0.25, iou_thresh=0.45, filter_classes=None, agnostic_nms=True, max_det=1000) -> None:
+    def __init__(self, model_file=Path('models/tflite/320/s.tflite'), names_file=Path('data/data.yaml'), conf_thresh=0.25, iou_thresh=0.45, filter_classes=None, agnostic_nms=True, max_det=1000) -> None:
         model_file = os.path.abspath(model_file)
         if not model_file.endswith('tflite'):
             model_file += ".tflite"
@@ -100,7 +101,7 @@ class Model:
             logger.warn("Interpreter is not yet loaded")
 
 
-    def forward(self, x: np.ndarray, with_nms=True) -> np.ndarray:
+    def forward(self, x: np.ndarray, with_nms=False) -> np.ndarray:
         """
         Predict function using the EdgeTPU
 
