@@ -43,9 +43,9 @@ stats = []
 iouv = np.linspace(0.5, 0.95, 10)  # iou vector for mAP@0.5:0.95
 niou = iouv.size
 
-m = TorchModel()
-images = sorted(glob('sample/images/*'))
-labels = sorted(glob('sample/labels/*'))
+m = TorchModel('models/torch/640/s.cpu.v7.torchscript')
+images = sorted(glob('sample/images/*'))[:10]
+labels = sorted(glob('sample/labels/*'))[:10]
 y = []
 for label in labels:
     with open(label, 'r') as f:
@@ -61,6 +61,7 @@ x = [(get_image_tensor(cv2.imread(img), 640),img) for img in images]
 for idx, (((im, shapes, im0, cratio), paths), (label)) in enumerate(zip(x, y)):
     label_origin = label.copy()
     out = m.forward(torch.from_numpy(im).unsqueeze(0).float())
+    print(out.shape)
     out = non_max_suppression(prediction=out, conf_thres=0.0001, iou_thres=0.6, labels=[], agnostic=True)
     _, height, width = im.shape
     im0 = cv2.imread(paths)
